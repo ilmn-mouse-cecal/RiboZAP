@@ -21,11 +21,11 @@ RUN conda install -y -c bioconda -c conda-forge \
     bedtools=2.31.1 \
     blast=2.16.0 \
     samtools=1.21 \
-    matplotlib \
-    pandas \
-    seaborn \
-    multiqc \
-    bbmap \
+    matplotlib=3.10.6 \
+    pandas=2.3.2 \
+    seaborn=0.13.2 \
+    multiqc=1.31 \
+    bbmap=39.26 \
     && conda clean -afy
 
 # Install Nextflow
