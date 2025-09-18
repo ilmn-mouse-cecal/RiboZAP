@@ -12,7 +12,6 @@ RUN apt-get update && \
         cmake \
         vim \
         git \
-        openjdk-17-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 # Install conda packages into base
@@ -30,9 +29,8 @@ RUN conda install -y -c bioconda -c conda-forge \
     && conda clean -afy
 
 # Install Nextflow
-RUN curl -s https://get.nextflow.io | bash && \
-    mv nextflow /usr/local/bin/ && \
-    chmod +x /usr/local/bin/nextflow
+RUN wget -qO /usr/local/bin/nextflow https://github.com/nextflow-io/nextflow/releases/download/v25.04.2/nextflow \
+    && chmod +x /usr/local/bin/nextflow
 
 # Install SortMeRNA 4.3.6 via binary installer
 RUN mkdir -p /opt/sortmerna && \
