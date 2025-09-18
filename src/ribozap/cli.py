@@ -103,7 +103,7 @@ def main():
     )
 
     probes.add_argument(
-        "--gap",
+        "--probe-tiling-gap",
         default=25,
         type=int,
         help="Gap size between probes (default: 25)",
@@ -140,9 +140,9 @@ def main():
     analysis_name = args.analysis_name
     out_dir.mkdir(parents=True, exist_ok=True)
     num_coverage_regions = args.num_cov_regions
-    gap = args.gap
     padding = args.padding
     cov_threshold = args.coverage_threshold
+    probe_tiling_gap = args.probe_tiling_gap
 
     rewritten_path = out_dir.resolve() / "rewritten_sample_sheet.csv"
     mount_path = out_dir.resolve() / "docker_mounts.txt"
@@ -158,7 +158,7 @@ def main():
         mount_file=mount_path,
         out_dir=out_dir,
         analysis_name=analysis_name,
-        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --gap {gap} --padding {padding} --coverage_threshold {cov_threshold} {resume_flag}",
+        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --probe_tiling_gap {probe_tiling_gap} --padding {padding} --coverage_threshold {cov_threshold} {resume_flag}",
         cpus=args.cpus,
         memory=args.memory,
         dry_run=args.dry_run

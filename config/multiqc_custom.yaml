@@ -45,22 +45,6 @@ custom_data:
             title: 'Read Composition by Sample'
             ylab: 'Read Count'
             stacking: 'normal'
-    
-    test_probes_heatmap:
-        plot_type: 'heatmap'
-        file_format: 'csv'
-        section_name: 'Probes test in-silico: Heatmap of Mapping Metrics'
-        
-        categories:
-            Depleted Mapped Percent:
-                name: "Depleted"
-            
-            Difference Percent:
-                name: "Depleted2"
-                
-        pconfig:
-            id: 'rRNA_mapping_percent'
-            
 
 sp:
     probe_fasta_link:
@@ -71,5 +55,3 @@ sp:
         fn: 'test_probes_rrna_reduction.csv'
     test_probes_composition:
         fn: 'test_probes_composition.csv'
-    test_probes_heatmap:
-        fn: 'test_probes_heatmap.csv'

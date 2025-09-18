@@ -25,6 +25,7 @@ RUN conda install -y -c bioconda -c conda-forge \
     pandas \
     seaborn \
     multiqc \
+    bbmap \
     && conda clean -afy
 
 # Install Nextflow

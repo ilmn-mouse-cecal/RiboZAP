@@ -10,7 +10,6 @@ from Bio.Blast import NCBIXML
 
 
 parser = argparse.ArgumentParser(description="Run BLAST and output a hit matrix")
-parser.add_argument("-t", "--top", type=str, default="50", help="Top N string (default: 50)")
 parser.add_argument("-f", "--fasta", required=True, help="Input FASTA file of top regions")
 parser.add_argument("-d", "--blastdb", required=True, help="BLAST database path")
 parser.add_argument("-o", "--outdir", required=True, help="Directory to save output files")

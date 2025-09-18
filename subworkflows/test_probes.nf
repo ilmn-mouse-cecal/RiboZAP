@@ -10,10 +10,10 @@ workflow TEST_PROBES {
         top_coverage_regions
 
     main:
+        RUN_SORTMERNA_BEST_HIT(merged_reads, "/app/idx", "${params.cpus}")
         RUN_BLAST(ref_fasta, additional_probe_80_percent_fasta, top_coverage_regions)
         FILTER_AND_ADD_PADDING(RUN_BLAST.out, ref_fasta, top_coverage_regions, params.padding)
         MERGE_CAN_DEPLETE_REGIONS(FILTER_AND_ADD_PADDING.out, top_coverage_regions)
-        RUN_SORTMERNA_BEST_HIT(merged_reads, "/app/idx", "${params.cpus}")
         //GENOME_COVERAGE_BED(RUN_SORTMERNA_BEST_HIT.out, ref_fasta)
         //IDENTIFY_ALL_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out)
         //MERGE_CLOSE_BY_BLOCKS(IDENTIFY_ALL_COVERAGE_BLOCKS.out)
@@ -89,8 +89,8 @@ process CALCULATE_STATS {
         def bam_path = bam_map[sample_id]
         def sam_path = sam_map[sample_id]
 
-        def depleted = new File(sam_path.toString()).readLines().size()
-        def totalmapped = "samtools view -F 4 ${bam_path.toString()}".execute().text.readLines().size()
+        def depleted = "grep -vc '^@' ${sam_path}".execute().text.trim().toInteger()
+        def totalmapped = "samtools view -c -F 4 ${bam_path}".execute().text.trim().toInteger()
         def totalfastq_lines = new File(merged_fastq_path.toString()).readLines().size()
         def totalfastq = totalfastq_lines / 4
 
@@ -248,8 +248,8 @@ process RUN_SORTMERNA_BEST_HIT {
       --SQ \
       --num_alignments 1
 
-    samtools view -Sb "${sample_id}_SortMeRna.sam" > "${sample_id}_SortMeRna.bam"
-    samtools sort "${sample_id}_SortMeRna.bam" -o "${sample_id}_SortMeRna.sorted.bam"
+    samtools view -b "${sample_id}_SortMeRna.sam" | \
+    samtools sort -o "${sample_id}_SortMeRna.sorted.bam"
     samtools index "${sample_id}_SortMeRna.sorted.bam"
     """
 }
