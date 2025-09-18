@@ -13,7 +13,6 @@ parser = argparse.ArgumentParser(description="Extract high-coverage blocks from 
 parser.add_argument("-s", "--sample", required=True, help="Sample name (used for file naming)")
 parser.add_argument("-c", "--cov", required=True, help="Genome coverage file")
 parser.add_argument("--high", type=int, required=True, help="Minimum coverage for high coverage block")
-parser.add_argument("--mid", type=int, default=0, help="Minimum coverage for mid coverage block")
 
 args = parser.parse_args()
 
@@ -27,7 +26,7 @@ block_start = block_end = max_cov = -1
 # Write output
 with output_path.open("w") as fout:
     fout.write("Genome Name\tBlock Start\tBlock End\tBlock Max Coverage\n")
-    print(f"Identifying Blocks for {args.sample}.\nMid Cov: {args.mid}-{args.high - 1}\nHigh Cov: {args.high}+")
+    print(f"Identifying Blocks for {args.sample}.\nHigh Cov: {args.high}+")
 
     with input_path.open("r") as fin:
         for line in fin:

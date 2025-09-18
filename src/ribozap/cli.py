@@ -19,28 +19,30 @@ def main():
         description="Run sample prep and containerized workflow for probe design.",
     )
 
-    parser.add_argument(
+    # ---------- General options ----------
+    opts = parser.add_argument_group('General options')
+    opts.add_argument(
         "--analysis-name",
         type=str,
         required=True,
         help="Name of the analysis",
     )
 
-    parser.add_argument(
+    opts.add_argument(
         "--sample-sheet",
         type=Path,
         required=True,
         help="Path to the input sample sheet (CSV)",
     )
 
-    parser.add_argument(
+    opts.add_argument(
         "--output-dir",
         type=Path,
         help="Directory to write outputs and mount in Docker",
         required=True
     )
 
-    parser.add_argument(
+    opts.add_argument(
         "--cpus",
         default=4,
         type=int,
@@ -48,39 +50,16 @@ def main():
         required=False
     )
 
-    parser.add_argument(
+    opts.add_argument(
         "--memory", default=16, type=int, help="Limit memory for Docker container (e.g. 16)",
         required=False
     )
 
-    parser.add_argument(
+    opts.add_argument(
         "--resume",
         action="store_true",
         help="Enable Nextflow -resume mode to continue from previous work directory",
         required=False
-    )
-
-    parser.add_argument(
-        "--num-cov-regions",
-        default=50,
-        type=int,
-        help="Enter the number of top high-coverage regions from the BED file to keep (default: 50)",
-        required=False
-    )
-
-    parser.add_argument(
-        "--gap",
-        default=25,
-        type=int,
-        help="Gap size between probes (default: 25)",
-        required=False
-    )
-
-    parser.add_argument(
-        "--padding",
-        type=int,
-        default=50,
-        help="Number of bases to extend upstream and downstream of each alignment (default: 50bp). This is useful for in silico probe testing to get coverage beyond the aligned region."
     )
 
     parser.add_argument(
@@ -106,6 +85,40 @@ def main():
         required=False
     )
 
+    # ---------- Probe design options ----------
+    probes = parser.add_argument_group('Probe design options')
+    probes.add_argument(
+        "--coverage-threshold",
+        default=500,
+        type=int,
+        help="Minimum read depth required to define a high-coverage block. All consecutive regions with coverage ≥ this value are merged.",
+        required=False
+    )
+    probes.add_argument(
+        "--num-cov-regions",
+        default=50,
+        type=int,
+        help="Enter the number of top high-coverage regions from the BED file to keep (default: 50)",
+        required=False
+    )
+
+    probes.add_argument(
+        "--probe-tiling-gap",
+        default=25,
+        type=int,
+        help="Gap size between probes (default: 25)",
+        required=False
+    )
+
+    # ---------- In-silico testing options ----------
+    in_silico = parser.add_argument_group('In-silico testing options')
+    in_silico.add_argument(
+        "--padding",
+        type=int,
+        default=50,
+        help="Number of bases to extend upstream and downstream of each alignment (default: 50bp). This is useful for in silico probe testing to get coverage beyond the aligned region."
+    )
+
     args = parser.parse_args()
     
     if args.cpus < MIN_CPUS:
@@ -127,8 +140,9 @@ def main():
     analysis_name = args.analysis_name
     out_dir.mkdir(parents=True, exist_ok=True)
     num_coverage_regions = args.num_cov_regions
-    gap = args.gap
     padding = args.padding
+    cov_threshold = args.coverage_threshold
+    probe_tiling_gap = args.probe_tiling_gap
 
     rewritten_path = out_dir.resolve() / "rewritten_sample_sheet.csv"
     mount_path = out_dir.resolve() / "docker_mounts.txt"
@@ -144,7 +158,7 @@ def main():
         mount_file=mount_path,
         out_dir=out_dir,
         analysis_name=analysis_name,
-        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --gap {gap} --padding {padding} {resume_flag}",
+        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --probe_tiling_gap {probe_tiling_gap} --padding {padding} --coverage_threshold {cov_threshold} {resume_flag}",
         cpus=args.cpus,
         memory=args.memory,
         dry_run=args.dry_run

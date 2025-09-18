@@ -3,8 +3,9 @@
 params.sample_sheet = null
 params.outdir = null
 params.top_coverage_regions = 50
-params.gap = 25
+params.probe_tiling_gap = 25
 params.padding = 50
+params.coverage_threshold = 500
 params.test_dir = "${params.outdir}/test_probes"
 
 include { TEST_PROBES } from './subworkflows/test_probes'
@@ -38,7 +39,7 @@ workflow {
 
     SAM_TO_BAM(sortmerna_out)
     GENOME_COVERAGE_BED(SAM_TO_BAM.out, "/app/resources/Genome/allFasta.fasta")
-    IDENTIFY_HIGH_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out)
+    IDENTIFY_HIGH_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out, params.coverage_threshold)
     MERGE_CLOSE_BY_BLOCKS(IDENTIFY_HIGH_COVERAGE_BLOCKS.out)
     ADD_READ_PERCENT(MERGE_CLOSE_BY_BLOCKS.out)
     ADD_READ_PERCENT.out.collect().set { all_cov_sorted_bed_percent_added }
@@ -48,9 +49,9 @@ workflow {
     )
     MERGE_OVERLAPPING_REGIONS(params.top_coverage_regions, GET_TOP_COVERAGE_REGIONS.out)
     BED_TO_FASTA(MERGE_OVERLAPPING_REGIONS.out, "/app/resources/Genome/allFasta.fasta", params.top_coverage_regions)
-    RUN_BLAST(BED_TO_FASTA.out, params.top_coverage_regions)
+    RUN_BLAST(BED_TO_FASTA.out)
     IDENTIFY_HEATMAP_BLOCKS(RUN_BLAST.out.blast_hit_json, RUN_BLAST.out.cov_fasta, params.top_coverage_regions)
-    MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions)
+    MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap)
     GET_FASTA(MAKE_BED_25BP_GAP.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
     
     TEST_PROBES(
@@ -93,13 +94,14 @@ process MAKE_BED_25BP_GAP {
     input:
     path(fasta_index)
     val(top_coverage_regions)
+    val(probe_tiling_gap)
 
     output:
     path("top_${top_coverage_regions}_additional_probe_80perc_only.bed")
 
     script:
     """
-    /app/bin/make_bed_25bp_gap_v2.py $fasta_index "top_${top_coverage_regions}_additional_probe_80perc_only.bed"
+    /app/bin/make_bed_25bp_gap_v2.py $fasta_index "top_${top_coverage_regions}_additional_probe_80perc_only.bed" --gap $probe_tiling_gap
     """
 }
 
@@ -132,7 +134,6 @@ process RUN_BLAST {
 
     input:
     path(cov_fasta)
-    val(top_coverage_regions)
     
     output:
     path("blastHitResult.json"), emit: blast_hit_json
@@ -141,7 +142,7 @@ process RUN_BLAST {
     script:
     """
     makeblastdb -in $cov_fasta -dbtype 'nucl' -out db
-    /app/bin/blast.py -t ${top_coverage_regions} -f $cov_fasta -d db -o ./
+    /app/bin/blast.py -f $cov_fasta -d db -o ./
     """
 }
 
@@ -255,13 +256,14 @@ process IDENTIFY_HIGH_COVERAGE_BLOCKS {
 
     input:
     tuple val(sample_id), path(genome_cov_bed), path(merged_fastq)
+    val(coverage_threshold)
 
     output:
     tuple val(sample_id), path("${sample_id}_high_coverage_blocks.tsv"), path(merged_fastq)
 
     script:
     """
-    /app/bin/identify_blocks.py -s ${sample_id} -c $genome_cov_bed --high 500 --mid 100
+    /app/bin/identify_blocks.py -s ${sample_id} -c $genome_cov_bed --high ${coverage_threshold}
     """
 }
 
@@ -326,10 +328,15 @@ process MERGE_PAIRED_READS {
 
     """
     if [[ $read2_arg == "" ]]; then
-        cp "$read1" "${sample_id}_Merged.fastq"
+        if [[ "$read1" == *.gz ]]; then
+            cp "$read1" "${sample_id}_Merged.fastq.gz"
+        else
+            gzip -c "$read1" > "${sample_id}_Merged.fastq.gz"
+        fi
     else
-        ${projectDir}/bin/merge-paired-reads.sh "$read1" $read2_arg "${sample_id}_Merged.fastq"
+        reformat.sh in1="$read1" in2="$read2_arg" out="${sample_id}_Merged.fastq" threads=6
     fi
+
     """
 }
 
@@ -350,6 +357,7 @@ process RUN_SORTMERNA {
 
     script:
     def ref_base = "${projectDir}/resources/rRNA_databases"
+    
     """
     sortmerna \
       --workdir './' \
