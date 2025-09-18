@@ -4,15 +4,15 @@ LABEL maintainer="Samuel Bunga"
 WORKDIR /app
 
 # Install build tools and dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    wget \
-    zlib1g-dev \
-    cmake \
-    vim\
-    git \
-    default-jre \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        wget \
+        zlib1g-dev \
+        cmake \
+        vim \
+        git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install conda packages into base
 RUN conda install -y -c bioconda -c conda-forge \
@@ -21,17 +21,16 @@ RUN conda install -y -c bioconda -c conda-forge \
     bedtools=2.31.1 \
     blast=2.16.0 \
     samtools=1.21 \
-    matplotlib \
-    pandas \
-    seaborn \
-    multiqc \
-    bbmap \
+    matplotlib=3.10.6 \
+    pandas=2.3.2 \
+    seaborn=0.13.2 \
+    multiqc=1.31 \
+    bbmap=39.26 \
     && conda clean -afy
 
 # Install Nextflow
-RUN curl -s https://get.nextflow.io | bash && \
-    mv nextflow /usr/local/bin/ && \
-    chmod +x /usr/local/bin/nextflow
+RUN wget -qO /usr/local/bin/nextflow https://github.com/nextflow-io/nextflow/releases/download/v25.04.2/nextflow \
+    && chmod +x /usr/local/bin/nextflow
 
 # Install SortMeRNA 4.3.6 via binary installer
 RUN mkdir -p /opt/sortmerna && \
