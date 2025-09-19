@@ -26,14 +26,15 @@ workflow {
             def sample_id = row.sample_id.trim()
             def read1 = file(row.read1.trim())
             def read2 = row.containsKey('read2') && row.read2?.trim() ? file(row.read2.trim()) : null
-            tuple(sample_id, read1, read2)
+            def is_pe = read2 ? true: false
+            tuple(sample_id, read1, read2, is_pe)
         }
         .set { samples_ch }
 
-    MERGE_PAIRED_READS(samples_ch)
-    RUN_SORTMERNA(MERGE_PAIRED_READS.out, "/app/idx", "${params.cpus}")
-    RUN_SORTMERNA.out.map { sample_id, bam_file, merged_fastq ->
-        tuple(sample_id, bam_file, merged_fastq)
+    //MERGE_PAIRED_READS(samples_ch)
+    RUN_SORTMERNA(samples_ch, "/app/idx", "${params.cpus}")
+    RUN_SORTMERNA.out.map { sample_id, bam_file, read1, read2 ->
+        tuple(sample_id, bam_file, read1, read2)
     }
     .set { sortmerna_out }
     GENOME_COVERAGE_BED(sortmerna_out, "/app/resources/Genome/allFasta.fasta")
@@ -53,7 +54,7 @@ workflow {
     GET_FASTA(MAKE_BED_25BP_GAP.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
     
     TEST_PROBES(
-        MERGE_PAIRED_READS.out,
+        samples_ch,
         GENOME_COVERAGE_BED.out,
         "/app/resources/Genome/allFasta.fasta",
         GET_FASTA.out.probes_fasta,
@@ -211,14 +212,14 @@ process ADD_READ_PERCENT {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(cov_sorted_bed), path(merged_fastq)
+    tuple val(sample_id), path(cov_sorted_bed), path(read1), path(read2)
 
     output:
     path("${sample_id}_high_coverage_blocks_gap_merged_cov_sorted_percentage_added.bed")
 
     script:
     """
-    read_count=`wc -l $merged_fastq | awk '{print \$1/4;}'`
+    read_count=`wc -l $read1 | awk '{print \$1/4;}'`
     /app/bin/add_read_percent.py -s ${sample_id} -c $cov_sorted_bed -n \$read_count
     """
 }
@@ -232,10 +233,10 @@ process MERGE_CLOSE_BY_BLOCKS {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(high_cov_blocks), path(merged_fastq)
+    tuple val(sample_id), path(high_cov_blocks), path(read1), path(read2)
 
     output:
-    tuple val(sample_id), path("${sample_id}_cov_blocks_merged_sorted.bed"), path(merged_fastq)
+    tuple val(sample_id), path("${sample_id}_cov_blocks_merged_sorted.bed"), path(read1), path(read2)
 
     script:
     """
@@ -253,11 +254,11 @@ process IDENTIFY_HIGH_COVERAGE_BLOCKS {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(genome_cov_bed), path(merged_fastq)
+    tuple val(sample_id), path(genome_cov_bed), path(read1), path(read2)
     val(coverage_threshold)
 
     output:
-    tuple val(sample_id), path("${sample_id}_high_coverage_blocks.tsv"), path(merged_fastq)
+    tuple val(sample_id), path("${sample_id}_high_coverage_blocks.tsv"), path(read1), path(read2)
 
     script:
     """
@@ -274,11 +275,11 @@ process GENOME_COVERAGE_BED {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(bam_file), path(merged_fastq)
+    tuple val(sample_id), path(bam_file), path(read1), path(read2)
     path(all_fasta)
 
     output:
-    tuple val(sample_id), path("${sample_id}_genomeCoverage.bed"), path(merged_fastq)
+    tuple val(sample_id), path("${sample_id}_genomeCoverage.bed"), path(read1), path(read2)
 
     script:
     """
@@ -295,10 +296,10 @@ process SORT_AND_INDEX {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(bam_file), path(merged_fastq)
+    tuple val(sample_id), path(bam_file), path(read1), path(read2)
 
     output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
+    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(read1), path(read2)
 
     script:
     """
@@ -346,16 +347,16 @@ process RUN_SORTMERNA {
     publishDir "${params.outdir}/$sample_id"
 
     input:
-    tuple val(sample_id), path(merged_fastq)
+    tuple val(sample_id), path(read1), path(read2), val(is_pe)
     path(index_files)
     val(cpus)
 
     output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
+    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(read1), path(read2)
 
     script:
     def ref_base = "${projectDir}/resources/rRNA_databases"
-    
+    def read2_opt = read2 ? "--reads ${read2}" : ""
     """
     sortmerna \
       --workdir './' \
@@ -367,7 +368,8 @@ process RUN_SORTMERNA {
       --ref ${ref_base}/rfam-5s-database-id98.fasta \
       --ref ${ref_base}/silva-arc-16s-id95.fasta \
       --ref ${ref_base}/silva-euk-28s-id98.fasta \
-      --reads ${merged_fastq} \
+      --reads ${read1} \
+      ${read2_opt} \
       --aligned ${sample_id}_SortMeRna \
       --sam \
       --threads ${cpus} \
