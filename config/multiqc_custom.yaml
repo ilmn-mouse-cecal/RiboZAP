@@ -25,18 +25,20 @@ custom_data:
             id: 'rRNA_reduction_extra_probes'
             title: 'rRNA Reduction by Extra Probes'
             ylab: 'Estimated rRNA Reduction (%)'
+            ymin: 0
+            ymax: 100
     
     test_probes_composition:
         plot_type: 'bargraph'
         file_format: 'csv'
         section_name: 'Probes test in-silico: Read composition'
         categories:
+            Remaining rRNA:
+                name: "Remaining rRNA"
+                color: "#dd8452"
             Depleted:
                 name: "Depleted"
                 color: "#4c72b0"
-            Remaining Mapped:
-                name: "Remaining Mapped"
-                color: "#dd8452"
             Unmapped:
                 name: "Unmapped"
                 color: "#999999"
