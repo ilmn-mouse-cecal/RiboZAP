@@ -26,7 +26,10 @@ RUN conda install -y -c bioconda -c conda-forge \
     seaborn=0.13.2 \
     multiqc=1.31 \
     bbmap=39.26 \
+    openjdk=17 \
     && conda clean -afy
+
+ENV JAVA_HOME=/opt/conda
 
 # Install Nextflow
 RUN wget -qO /usr/local/bin/nextflow https://github.com/nextflow-io/nextflow/releases/download/v25.04.2/nextflow \
