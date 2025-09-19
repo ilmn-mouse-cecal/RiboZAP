@@ -19,7 +19,7 @@ Depleting rRNA, which typically constitutes 80–90% of total RNA, before sequen
 **Clone the repository**:
 
 ```bash
-git clone https://github.com/yourusername/ribozap.git
+git clone https://github.com/ilmn-mouse-cecal/RiboZAP.git
 cd RiboZAP
 pip install .
 docker build -t ribozap:latest .
