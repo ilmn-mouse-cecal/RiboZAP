@@ -32,13 +32,11 @@ workflow {
 
     MERGE_PAIRED_READS(samples_ch)
     RUN_SORTMERNA(MERGE_PAIRED_READS.out, "/app/idx", "${params.cpus}")
-    RUN_SORTMERNA.out.map { sample_id, sortmerna_list, sam_file, merged_fastq ->
-        tuple(sample_id, sam_file, merged_fastq)
+    RUN_SORTMERNA.out.map { sample_id, bam_file, merged_fastq ->
+        tuple(sample_id, bam_file, merged_fastq)
     }
     .set { sortmerna_out }
-
-    SAM_TO_BAM(sortmerna_out)
-    GENOME_COVERAGE_BED(SAM_TO_BAM.out, "/app/resources/Genome/allFasta.fasta")
+    GENOME_COVERAGE_BED(sortmerna_out, "/app/resources/Genome/allFasta.fasta")
     IDENTIFY_HIGH_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out, params.coverage_threshold)
     MERGE_CLOSE_BY_BLOCKS(IDENTIFY_HIGH_COVERAGE_BLOCKS.out)
     ADD_READ_PERCENT(MERGE_CLOSE_BY_BLOCKS.out)
@@ -353,7 +351,7 @@ process RUN_SORTMERNA {
     val(cpus)
 
     output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.*"), path("${sample_id}_SortMeRna.sam"), path(merged_fastq)
+    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
 
     script:
     def ref_base = "${projectDir}/resources/rRNA_databases"
@@ -375,27 +373,9 @@ process RUN_SORTMERNA {
       --threads ${cpus} \
       --SQ \
       --num_alignments 0
-    """
-}
-
-process SAM_TO_BAM {
-    label 'medium'
-
-    publishDir "${params.outdir}/$sample_id"
-
-    tag "$sample_id"
-    errorStrategy 'ignore'
-
-    input:
-    tuple val(sample_id), path(sam_file), path(merged_fastq)
-
-    output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
-
-    script:
-    """
-    samtools view -Sb $sam_file > ${sample_id}_SortMeRna.bam
-    samtools sort ${sample_id}_SortMeRna.bam -o ${sample_id}_SortMeRna.sorted.bam
+    
+    samtools sort -o ${sample_id}_SortMeRna.sorted.bam ${sample_id}_SortMeRna.sam
     samtools index ${sample_id}_SortMeRna.sorted.bam
+    rm -rf ${sample_id}_SortMeRna.sam
     """
 }

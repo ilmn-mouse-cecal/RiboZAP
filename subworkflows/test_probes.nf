@@ -95,11 +95,11 @@ process CALCULATE_STATS {
         def totalfastq = totalfastq_lines / 4
 
         def mapped_percent = (totalmapped / totalfastq) * 100
-        def depleted_mapped_percent = ((totalmapped - depleted) / (totalfastq - depleted)) * 100
-        def diff_percent = mapped_percent - depleted_mapped_percent
+        def depleted_mapped_percent = ((totalmapped - depleted) / totalmapped) * 100
+        def rrna_depletion_percent = (depleted / totalmapped) * 100
         def remaining_mapped = totalmapped - depleted
         def unmapped = totalfastq - totalmapped
-        resultFile.append("${sample_id},${totalfastq},${totalmapped},${remaining_mapped},${unmapped},${depleted},${String.format('%.2f', mapped_percent)},${String.format('%.2f', depleted_mapped_percent)},${String.format('%.2f', diff_percent)}\n")
+        resultFile.append("${sample_id},${totalfastq},${totalmapped},${remaining_mapped},${unmapped},${depleted},${String.format('%.2f', mapped_percent)},${String.format('%.2f', depleted_mapped_percent)},${String.format('%.2f', rrna_depletion_percent)}\n")
     }
 }
 
@@ -251,6 +251,7 @@ process RUN_SORTMERNA_BEST_HIT {
     samtools view -b "${sample_id}_SortMeRna.sam" | \
     samtools sort -o "${sample_id}_SortMeRna.sorted.bam"
     samtools index "${sample_id}_SortMeRna.sorted.bam"
+    rm -rf "${sample_id}_SortMeRna.sam"
     """
 }
 
