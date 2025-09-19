@@ -4,9 +4,9 @@
 
 ## Overview
 
-**ribozap** is designed to generate custom RNaseH probes for metagenomic RNA samples without prior knowledge of the genomes or species present. This boosts the performance of the RiboZero Plus kit by targeting additional ribosomal RNA (rRNA) regions for depletion.
+**ribozap** is designed to generate custom RNaseH probes for metatranscriptomics samples without prior knowledge of sample compostion. Addition of these probes to RiboZero Plus Microbiome kit will significantly improve depletion of additional ribosomal RNA (rRNA) regions.
 
-Depleting rRNA, which typically constitutes 80–90% of total RNA, before sequencing significantly reduces sequencing costs and increases the coverage of biologically relevant transcripts.
+Depleting rRNA, which typically constitutes 80–90% of total RNA, before sequencing significantly reduces sequencing costs and increases the coverage of mRNA.
 
 
 ## Installation
@@ -21,7 +21,7 @@ Depleting rRNA, which typically constitutes 80–90% of total RNA, before sequen
 ```bash
 git clone https://github.com/yourusername/ribozap.git
 cd ribozap
-pip install -e .
+pip install .
 docker build -t ribozap:latest .
 
 ribozap \
@@ -30,6 +30,8 @@ ribozap \
   --analysis-name my_analysis \
   --cpus 4 \
   --memory 16 \
+  --image ribozap \
+  --image-tag 'latest' \
   --resume
 ```
 
