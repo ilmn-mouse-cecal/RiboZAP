@@ -35,7 +35,7 @@ workflow TEST_PROBES {
         GENERATE_REPORTS(
             CALCULATE_STATS.out,
             additional_probe_80_percent_fasta,
-            probes_summary
+            file(probes_summary)
         )
 }
 
@@ -58,9 +58,7 @@ process GENERATE_REPORTS {
     cp top_coverage_result.csv test_probes_composition.csv
     cut -f1,7,8,9 -d, top_coverage_result.csv >test_probes_heatmap.csv
     rm -rf reports &&  multiqc . -o reports --config /app/config/multiqc_custom.yaml
-    if [[ -f $probes_fasta ]]
-        cp $probes_fasta reports/probes.fasta
-    fi
+    cp $probes_fasta reports/probes.fasta
     """
 }
 
