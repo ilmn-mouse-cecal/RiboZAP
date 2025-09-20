@@ -4,7 +4,6 @@ workflow TEST_PROBES {
     take:
         samples_ch
         merged_fastq
-        genome_cov_bed
         ref_fasta
         additional_probe_80_percent_fasta
         probes_summary
@@ -59,7 +58,9 @@ process GENERATE_REPORTS {
     cp top_coverage_result.csv test_probes_composition.csv
     cut -f1,7,8,9 -d, top_coverage_result.csv >test_probes_heatmap.csv
     rm -rf reports &&  multiqc . -o reports --config /app/config/multiqc_custom.yaml
-    cp $probes_fasta reports/probes.fasta
+    if [[ -f $probes_fasta ]]
+        cp $probes_fasta reports/probes.fasta
+    fi
     """
 }
 

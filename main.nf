@@ -7,6 +7,8 @@ params.probe_tiling_gap = 25
 params.padding = 50
 params.coverage_threshold = 500
 params.test_dir = "${params.outdir}/test_probes"
+params.probes_fasta = null
+params.probes_summary = null
 
 include { TEST_PROBES } from './subworkflows/test_probes'
 
@@ -30,38 +32,47 @@ workflow {
             tuple(sample_id, read1, read2, is_pe)
         }
         .set { samples_ch }
-
     MERGE_PAIRED_READS(samples_ch)
-    RUN_SORTMERNA(MERGE_PAIRED_READS.out, "/app/idx", "${params.cpus}")
-    RUN_SORTMERNA.out.map { sample_id, bam_file, merged_fastq ->
-        tuple(sample_id, bam_file, merged_fastq)
+    if (!params.probes_summary && !params.probes_fasta) {
+        RUN_SORTMERNA(MERGE_PAIRED_READS.out, "/app/idx", "${params.cpus}")
+        RUN_SORTMERNA.out.map { sample_id, bam_file, merged_fastq ->
+            tuple(sample_id, bam_file, merged_fastq)
+        }
+        .set { sortmerna_out }
+        GENOME_COVERAGE_BED(sortmerna_out, "/app/resources/Genome/allFasta.fasta")
+        IDENTIFY_HIGH_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out, params.coverage_threshold)
+        MERGE_CLOSE_BY_BLOCKS(IDENTIFY_HIGH_COVERAGE_BLOCKS.out)
+        ADD_READ_PERCENT(MERGE_CLOSE_BY_BLOCKS.out)
+        ADD_READ_PERCENT.out.collect().set { all_cov_sorted_bed_percent_added }
+        GET_TOP_COVERAGE_REGIONS(
+            params.top_coverage_regions, 
+            all_cov_sorted_bed_percent_added
+        )
+        MERGE_OVERLAPPING_REGIONS(params.top_coverage_regions, GET_TOP_COVERAGE_REGIONS.out)
+        BED_TO_FASTA(MERGE_OVERLAPPING_REGIONS.out, "/app/resources/Genome/allFasta.fasta", params.top_coverage_regions)
+        RUN_BLAST(BED_TO_FASTA.out)
+        IDENTIFY_HEATMAP_BLOCKS(RUN_BLAST.out.blast_hit_json, RUN_BLAST.out.cov_fasta, params.top_coverage_regions)
+        MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap)
+        GET_FASTA(MAKE_BED_25BP_GAP.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
+        
+        TEST_PROBES(
+            samples_ch,
+            MERGE_PAIRED_READS.out,
+            "/app/resources/Genome/allFasta.fasta",
+            GET_FASTA.out.probes_fasta,
+            GET_FASTA.out.probes_summary,
+            params.top_coverage_regions
+        )
+    } else {
+        TEST_PROBES(
+            samples_ch,
+            MERGE_PAIRED_READS.out,
+            "/app/resources/Genome/allFasta.fasta",
+            params.probes_fasta,
+            params.probes_summary,
+            params.top_coverage_regions
+        )
     }
-    .set { sortmerna_out }
-    GENOME_COVERAGE_BED(sortmerna_out, "/app/resources/Genome/allFasta.fasta")
-    IDENTIFY_HIGH_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out, params.coverage_threshold)
-    MERGE_CLOSE_BY_BLOCKS(IDENTIFY_HIGH_COVERAGE_BLOCKS.out)
-    ADD_READ_PERCENT(MERGE_CLOSE_BY_BLOCKS.out)
-    ADD_READ_PERCENT.out.collect().set { all_cov_sorted_bed_percent_added }
-    GET_TOP_COVERAGE_REGIONS(
-        params.top_coverage_regions, 
-        all_cov_sorted_bed_percent_added
-    )
-    MERGE_OVERLAPPING_REGIONS(params.top_coverage_regions, GET_TOP_COVERAGE_REGIONS.out)
-    BED_TO_FASTA(MERGE_OVERLAPPING_REGIONS.out, "/app/resources/Genome/allFasta.fasta", params.top_coverage_regions)
-    RUN_BLAST(BED_TO_FASTA.out)
-    IDENTIFY_HEATMAP_BLOCKS(RUN_BLAST.out.blast_hit_json, RUN_BLAST.out.cov_fasta, params.top_coverage_regions)
-    MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap)
-    GET_FASTA(MAKE_BED_25BP_GAP.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
-    
-    TEST_PROBES(
-        samples_ch,
-        MERGE_PAIRED_READS.out,
-        GENOME_COVERAGE_BED.out,
-        "/app/resources/Genome/allFasta.fasta",
-        GET_FASTA.out.probes_fasta,
-        GET_FASTA.out.probes_summary,
-        params.top_coverage_regions
-    )
 }
 
 process GET_FASTA {
