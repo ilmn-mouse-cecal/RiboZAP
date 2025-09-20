@@ -254,10 +254,14 @@ process RUN_SORTMERNA_BEST_HIT {
       --SQ \
       --num_alignments 1
 
-    samtools view -b "${sample_id}_SortMeRna.sam" | \
+    sam_file="${sample_id}_SortMeRna.sam"
+    if [[ ! -f \$sam_file ]]; then
+        sam_file="${sample_id}_SortMeRna.sam.gz"
+    fi
+    samtools view -b \$sam_file | \
     samtools sort -o "${sample_id}_SortMeRna.sorted.bam"
     samtools index "${sample_id}_SortMeRna.sorted.bam"
-    rm -rf "${sample_id}_SortMeRna.sam"
+    rm -rf \$sam_file
     """
 }
 
