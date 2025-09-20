@@ -377,12 +377,12 @@ process RUN_SORTMERNA {
       --num_alignments 0
     
     sam_file="${sample_id}_SortMeRna.sam"
-    if [[ ! -f \$sam_file ]]; then
-        sam_file="${sample_id}_SortMeRna.sam.gz"
-    fi
+    [[ ! -f "\$sam_file" ]] && sam_file="${sample_id}_SortMeRna.sam.gz"
 
-    samtools sort -o ${sample_id}_SortMeRna.sorted.bam \$sam_file
-    samtools index ${sample_id}_SortMeRna.sorted.bam
-    rm -rf \$sam_file
+    samtools view -@ ${cpus} -b "\$sam_file" | \
+        samtools sort -@ ${cpus} -o "${sample_id}_SortMeRna.sorted.bam"
+    samtools index -@ ${cpus} "${sample_id}_SortMeRna.sorted.bam"
+
+    rm -rf "\$sam_file"
     """
 }
