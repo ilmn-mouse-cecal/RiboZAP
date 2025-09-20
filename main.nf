@@ -31,10 +31,10 @@ workflow {
         }
         .set { samples_ch }
 
-    //MERGE_PAIRED_READS(samples_ch)
-    RUN_SORTMERNA(samples_ch, "/app/idx", "${params.cpus}")
-    RUN_SORTMERNA.out.map { sample_id, bam_file, read1, read2 ->
-        tuple(sample_id, bam_file, read1, read2)
+    MERGE_PAIRED_READS(samples_ch)
+    RUN_SORTMERNA(MERGE_PAIRED_READS.out, "/app/idx", "${params.cpus}")
+    RUN_SORTMERNA.out.map { sample_id, bam_file, merged_fastq ->
+        tuple(sample_id, bam_file, merged_fastq)
     }
     .set { sortmerna_out }
     GENOME_COVERAGE_BED(sortmerna_out, "/app/resources/Genome/allFasta.fasta")
@@ -55,6 +55,7 @@ workflow {
     
     TEST_PROBES(
         samples_ch,
+        MERGE_PAIRED_READS.out,
         GENOME_COVERAGE_BED.out,
         "/app/resources/Genome/allFasta.fasta",
         GET_FASTA.out.probes_fasta,
@@ -212,14 +213,14 @@ process ADD_READ_PERCENT {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(cov_sorted_bed), path(read1), path(read2)
+    tuple val(sample_id), path(cov_sorted_bed), path(merged_fastq)
 
     output:
     path("${sample_id}_high_coverage_blocks_gap_merged_cov_sorted_percentage_added.bed")
 
     script:
     """
-    read_count=`wc -l $read1 | awk '{print \$1/4;}'`
+    read_count=`wc -l $merged_fastq | awk '{print \$1/4;}'`
     /app/bin/add_read_percent.py -s ${sample_id} -c $cov_sorted_bed -n \$read_count
     """
 }
@@ -233,10 +234,10 @@ process MERGE_CLOSE_BY_BLOCKS {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(high_cov_blocks), path(read1), path(read2)
+    tuple val(sample_id), path(high_cov_blocks), path(merged_fastq)
 
     output:
-    tuple val(sample_id), path("${sample_id}_cov_blocks_merged_sorted.bed"), path(read1), path(read2)
+    tuple val(sample_id), path("${sample_id}_cov_blocks_merged_sorted.bed"), path(merged_fastq)
 
     script:
     """
@@ -254,11 +255,11 @@ process IDENTIFY_HIGH_COVERAGE_BLOCKS {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(genome_cov_bed), path(read1), path(read2)
+    tuple val(sample_id), path(genome_cov_bed), path(merged_fastq)
     val(coverage_threshold)
 
     output:
-    tuple val(sample_id), path("${sample_id}_high_coverage_blocks.tsv"), path(read1), path(read2)
+    tuple val(sample_id), path("${sample_id}_high_coverage_blocks.tsv"), path(merged_fastq)
 
     script:
     """
@@ -275,11 +276,11 @@ process GENOME_COVERAGE_BED {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(bam_file), path(read1), path(read2)
+    tuple val(sample_id), path(bam_file), path(merged_fastq)
     path(all_fasta)
 
     output:
-    tuple val(sample_id), path("${sample_id}_genomeCoverage.bed"), path(read1), path(read2)
+    tuple val(sample_id), path("${sample_id}_genomeCoverage.bed"), path(merged_fastq)
 
     script:
     """
@@ -296,10 +297,10 @@ process SORT_AND_INDEX {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(bam_file), path(read1), path(read2)
+    tuple val(sample_id), path(bam_file), path(merged_fastq)
 
     output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(read1), path(read2)
+    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
 
     script:
     """
@@ -317,7 +318,7 @@ process MERGE_PAIRED_READS {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(read1), path(read2)
+    tuple val(sample_id), path(read1), path(read2), val(pe)
 
     output:
     tuple val(sample_id), path("${sample_id}_Merged.fastq")
@@ -326,16 +327,15 @@ process MERGE_PAIRED_READS {
     def read2_arg = read2 ? "\"$read2\"" : ""
 
     """
-    if [[ $read2_arg == "" ]]; then
+    if [[ -z "$read2_arg" ]]; then
+        # Single-end
         if [[ "$read1" == *.gz ]]; then
             cp "$read1" "${sample_id}_Merged.fastq.gz"
-        else
-            gzip -c "$read1" > "${sample_id}_Merged.fastq.gz"
+            gunzip "${sample_id}_Merged.fastq.gz"
         fi
     else
         reformat.sh in1="$read1" in2="$read2_arg" out="${sample_id}_Merged.fastq" threads=6
     fi
-
     """
 }
 
@@ -347,16 +347,16 @@ process RUN_SORTMERNA {
     publishDir "${params.outdir}/$sample_id"
 
     input:
-    tuple val(sample_id), path(read1), path(read2), val(is_pe)
+    tuple val(sample_id), path(merged_fastq)
     path(index_files)
     val(cpus)
 
     output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(read1), path(read2)
+    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
 
     script:
     def ref_base = "${projectDir}/resources/rRNA_databases"
-    def read2_opt = read2 ? "--reads ${read2}" : ""
+    //def read2_opt = read2 ? "--reads ${read2}" : ""
     """
     sortmerna \
       --workdir './' \
@@ -368,8 +368,7 @@ process RUN_SORTMERNA {
       --ref ${ref_base}/rfam-5s-database-id98.fasta \
       --ref ${ref_base}/silva-arc-16s-id95.fasta \
       --ref ${ref_base}/silva-euk-28s-id98.fasta \
-      --reads ${read1} \
-      ${read2_opt} \
+      --reads ${merged_fastq} \
       --aligned ${sample_id}_SortMeRna \
       --sam \
       --threads ${cpus} \
@@ -377,12 +376,12 @@ process RUN_SORTMERNA {
       --num_alignments 0
     
     sam_file="${sample_id}_SortMeRna.sam"
-    [[ ! -f "\$sam_file" ]] && sam_file="${sample_id}_SortMeRna.sam.gz"
 
-    samtools view -@ ${cpus} -b "\$sam_file" | \
-        samtools sort -@ ${cpus} -o "${sample_id}_SortMeRna.sorted.bam"
-    samtools index -@ ${cpus} "${sample_id}_SortMeRna.sorted.bam"
+    samtools view -Sb \$sam_file > ${sample_id}_SortMeRna.bam
+    samtools sort ${sample_id}_SortMeRna.bam -o ${sample_id}_SortMeRna.sorted.bam
+    samtools index ${sample_id}_SortMeRna.sorted.bam
 
     rm -rf "\$sam_file"
+    rm -rf "${sample_id}_SortMeRna.bam"
     """
 }

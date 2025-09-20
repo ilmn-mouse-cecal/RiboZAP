@@ -3,6 +3,7 @@
 workflow TEST_PROBES {
     take:
         samples_ch
+        merged_fastq
         genome_cov_bed
         ref_fasta
         additional_probe_80_percent_fasta
@@ -10,7 +11,7 @@ workflow TEST_PROBES {
         top_coverage_regions
 
     main:
-        RUN_SORTMERNA_BEST_HIT(samples_ch, "/app/idx", "${params.cpus}")
+        RUN_SORTMERNA_BEST_HIT(merged_fastq, "/app/idx", "${params.cpus}")
         RUN_BLAST(ref_fasta, additional_probe_80_percent_fasta, top_coverage_regions)
         FILTER_AND_ADD_PADDING(RUN_BLAST.out, ref_fasta, top_coverage_regions, params.padding)
         MERGE_CAN_DEPLETE_REGIONS(FILTER_AND_ADD_PADDING.out, top_coverage_regions)
@@ -24,12 +25,12 @@ workflow TEST_PROBES {
         )
 
         samples_ch.collect(flat: false).set {all_samples}
-        RUN_SORTMERNA_BEST_HIT.out.collect(flat: false).set {srotmerna_bam}
+        RUN_SORTMERNA_BEST_HIT.out.collect(flat: false).set {sortmerna_bam}
         GET_NEAR_PROBE_READS.out.collect(flat: false).set {near_probe_reads}
 
         CALCULATE_STATS(
             all_samples,
-            srotmerna_bam,
+            sortmerna_bam,
             near_probe_reads
         )
         GENERATE_REPORTS(
@@ -77,37 +78,32 @@ process CALCULATE_STATS {
     val "${params.test_dir}/top_coverage_result.csv"
 
     exec:
-    def fastq_map = all_samples.collectEntries { [it[0], it[1]] }
+    def samples_map = all_samples.collectEntries { [it[0], it[1]] }
     def bam_map = sortmerna_bam_files.collectEntries { [it[0], it[1]] }
     def sam_map = near_probe_sam_files.collectEntries { [it[0], it[1]] }
     def is_pe = all_samples[0][3]
 
     def resultFile = new File(params.test_dir.toString() + "/top_coverage_result.csv")
-    resultFile.text = "Sample ID,Total Reads,Total Mapped,Remaining rRNA,Unmapped,Depleted,rRNA Mapped Percent,Remaining rRNA Percent,rRNA Depletion Percent\n"
+    resultFile.text = "Sample ID,Total Reads,Total Mapped,Unmapped,Depleted,Remaining Mapped,rRNA Mapped Percent,Remaining rRNA Percent,rRNA Depletion Percent\n"
 
-    fastq_map.keySet().each { sample_id ->
-        def fastq_path = fastq_map[sample_id]
+    samples_map.keySet().each { sample_id ->
+        def fastq_path = samples_map[sample_id]
         def bam_path = bam_map[sample_id]
         def sam_path = sam_map[sample_id]
 
         def depleted = "grep -vc '^@' ${sam_path}".execute().text.trim().toInteger()
-        depleted = is_pe ? (depleted / 2) : depleted
-        def totalmapped = "samtools view -c -F 4 ${bam_path}".execute().text.trim().toInteger()
-        def mapped = is_pe ? (totalmapped / 2) : totalmapped
-        def cmd = fastq_path.endsWith(".gz") ?
+        def mappedReads = ["bash", "-c", "samtools view -F 4 ${bam_path}| wc -l"].execute().text.trim().toInteger()
+        def cmd = fastq_path.toString().endsWith(".gz") ?
             "zcat ${fastq_path} | wc -l" :
-            "wc -l < ${fastq_path}"
-
-        def totalfastq_lines = ["bash","-c",cmd].execute().text.trim().toInteger()
-        def totalfastq = totalfastq_lines / 4
-        def unmapped = totalfastq - mapped
-        def mapped_percent = (mapped / totalfastq) * 100
-        def remaining_rRNA = mapped - depleted
-        def remaining_rRNA_percent = (remaining_rRNA / mapped) * 100
-        def rrna_depletion_percent = (depleted / totalfastq) * 100
-
-        
-        resultFile.append("${sample_id},${totalfastq},${mapped},${remaining_rRNA},${unmapped},${depleted},${String.format('%.2f', mapped_percent)},${String.format('%.2f', remaining_rRNA_percent)},${String.format('%.2f', rrna_depletion_percent)}\n")
+            "cat ${fastq_path} | wc -l"
+        def totalfastq_lines = ["bash", "-c", cmd].execute().text.trim().toInteger()
+        def totalfastq = is_pe ? (totalfastq_lines / 4) *2 : (totalfastq_lines / 4)
+        def unmapped = totalfastq - mappedReads
+        def mapped_percent = (mappedReads / totalfastq) * 100
+        def remaining_rRNA = mappedReads - depleted
+        def remaining_rRNA_percent = (remaining_rRNA / mappedReads) * 100
+        def rrna_depletion_percent = (depleted / mappedReads) * 100
+        resultFile.append("${sample_id},${totalfastq},${mappedReads},${unmapped},${depleted},${remaining_rRNA},${String.format('%.2f', mapped_percent)},${String.format('%.2f', remaining_rRNA_percent)},${String.format('%.2f', rrna_depletion_percent)}\n")
     }
 }
 
@@ -229,16 +225,15 @@ process RUN_SORTMERNA_BEST_HIT {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(read1), path(read2), val(is_pe)
+    tuple val(sample_id), path(merged_fastq)
     path(index_files)
     val(cpus)
 
     output:
-    tuple val(sample_id), path("${sample_id}_test_SortMeRna.sorted.bam")
+    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam")
 
     script:
     def ref_base = "/app/resources/rRNA_databases"
-    def read2_opt = read2 ? "--reads ${read2}" : ""
     """
     sortmerna \
       --workdir './' \
@@ -250,22 +245,17 @@ process RUN_SORTMERNA_BEST_HIT {
       --ref ${ref_base}/rfam-5s-database-id98.fasta \
       --ref ${ref_base}/silva-arc-16s-id95.fasta \
       --ref ${ref_base}/silva-euk-28s-id98.fasta \
-      --reads ${read1} \
-      ${read2_opt} \
-      --aligned ${sample_id}_test_SortMeRna \
+      --reads ${merged_fastq} \
+      --aligned ${sample_id}_SortMeRna \
       --threads ${cpus} \
       --sam \
       --SQ \
       --num_alignments 1
 
-    sam_file="${sample_id}_test_SortMeRna.sam"
-    if [[ ! -f \$sam_file ]]; then
-        sam_file="${sample_id}_test_SortMeRna.sam.gz"
-    fi
-    samtools view -@ ${cpus} -b \$sam_file | \
-    samtools sort -@ ${cpus} -o "${sample_id}_test_SortMeRna.sorted.bam"
-    samtools index -@ ${cpus} "${sample_id}_test_SortMeRna.sorted.bam"
-    rm -rf \$sam_file
+    samtools view -Sb "${sample_id}_SortMeRna.sam" > "${sample_id}_SortMeRna.bam"
+    samtools sort "${sample_id}_SortMeRna.bam" -o "${sample_id}_SortMeRna.sorted.bam"
+    rm -rf "${sample_id}_SortMeRna.sam"
+    rm -rf "${sample_id}_SortMeRna.bam"
     """
 }
 
