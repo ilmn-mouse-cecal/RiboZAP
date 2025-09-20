@@ -94,7 +94,11 @@ process CALCULATE_STATS {
         depleted = is_pe ? (depleted / 2) : depleted
         def totalmapped = "samtools view -c -F 4 ${bam_path}".execute().text.trim().toInteger()
         def mapped = is_pe ? (totalmapped / 2) : totalmapped
-        def totalfastq_lines = ["bash","-c","wc -l < ${fastq_path}"].execute().text.trim().toInteger()
+        def cmd = fastq_path.endsWith(".gz") ?
+            "zcat ${fastq_path} | wc -l" :
+            "wc -l < ${fastq_path}"
+
+        def totalfastq_lines = ["bash","-c",cmd].execute().text.trim().toInteger()
         def totalfastq = totalfastq_lines / 4
         def unmapped = totalfastq - mapped
         def mapped_percent = (mapped / totalfastq) * 100
@@ -230,7 +234,7 @@ process RUN_SORTMERNA_BEST_HIT {
     val(cpus)
 
     output:
-    tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam")
+    tuple val(sample_id), path("${sample_id}_test_SortMeRna.sorted.bam")
 
     script:
     def ref_base = "/app/resources/rRNA_databases"
@@ -248,19 +252,19 @@ process RUN_SORTMERNA_BEST_HIT {
       --ref ${ref_base}/silva-euk-28s-id98.fasta \
       --reads ${read1} \
       ${read2_opt} \
-      --aligned ${sample_id}_SortMeRna \
+      --aligned ${sample_id}_test_SortMeRna \
       --threads ${cpus} \
       --sam \
       --SQ \
       --num_alignments 1
 
-    sam_file="${sample_id}_SortMeRna.sam"
+    sam_file="${sample_id}_test_SortMeRna.sam"
     if [[ ! -f \$sam_file ]]; then
-        sam_file="${sample_id}_SortMeRna.sam.gz"
+        sam_file="${sample_id}_test_SortMeRna.sam.gz"
     fi
     samtools view -@ ${cpus} -b \$sam_file | \
-    samtools sort -@ ${cpus} -o "${sample_id}_SortMeRna.sorted.bam"
-    samtools index -@ ${cpus} "${sample_id}_SortMeRna.sorted.bam"
+    samtools sort -@ ${cpus} -o "${sample_id}_test_SortMeRna.sorted.bam"
+    samtools index -@ ${cpus} "${sample_id}_test_SortMeRna.sorted.bam"
     rm -rf \$sam_file
     """
 }
