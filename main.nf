@@ -376,8 +376,13 @@ process RUN_SORTMERNA {
       --SQ \
       --num_alignments 0
     
-    samtools sort -o ${sample_id}_SortMeRna.sorted.bam ${sample_id}_SortMeRna.sam
+    sam_file="${sample_id}_SortMeRna.sam"
+    if [[ ! -f \$sam_file ]]; then
+        sam_file="${sample_id}_SortMeRna.sam.gz"
+    fi
+
+    samtools sort -o ${sample_id}_SortMeRna.sorted.bam \$sam_file
     samtools index ${sample_id}_SortMeRna.sorted.bam
-    rm -rf ${sample_id}_SortMeRna.sam
+    rm -rf \$sam_file
     """
 }
