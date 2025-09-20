@@ -33,15 +33,15 @@ custom_data:
         file_format: 'csv'
         section_name: 'Probes test in-silico: Read composition'
         categories:
+            Unmapped:
+                name: "Unmapped"
+                color: "#999999"
             Remaining Mapped:
                 name: "Remaining Mapped"
                 color: "#dd8452"
             Depleted:
                 name: "Depleted"
                 color: "#4c72b0"
-            Unmapped:
-                name: "Unmapped"
-                color: "#999999"
         pconfig:
             id: 'read_composition_by_sample'
             title: 'Read Composition by Sample'
