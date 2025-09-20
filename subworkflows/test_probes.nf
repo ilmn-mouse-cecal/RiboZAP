@@ -32,10 +32,12 @@ workflow TEST_PROBES {
             sortmerna_bam,
             near_probe_reads
         )
+        new File("NO_SUMMARY").text = ""
+        probes_summary = probes_summary ? probes_summary: Channel.fromPath("NO_SUMMARY")
         GENERATE_REPORTS(
             CALCULATE_STATS.out,
             additional_probe_80_percent_fasta,
-            file(probes_summary)
+            probes_summary
         )
 }
 

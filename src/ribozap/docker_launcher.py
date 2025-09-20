@@ -13,14 +13,16 @@ def read_mount_file(mount_file: Path):
         logger.error(f"Mount file not found: {mount_file}")
         raise
 
-def get_required_mounts(out_dir: Path, analysis_name: str):
+def get_required_mounts(out_dir: Path, analysis_name: str, other_paths):
     nextflow_logs = out_dir / analysis_name / "logs"
-
     mounts = [
         f'-v "{out_dir.resolve()}:{out_dir.resolve()}"',
         f'-v "{out_dir.resolve()}/{analysis_name}:/app/nextflow_files"',
         f'-v "{nextflow_logs.resolve()}:{nextflow_logs.resolve()}"',
     ]
+    for path in other_paths:
+        mounts.append(f'-v {path}:{path}')
+
     # rRNA index
     rrna_index = Path(environ["HOME"]) / ".rRNA_database_index"
     mounts.append(f'-v "{rrna_index}:/app/idx"')
@@ -49,6 +51,7 @@ def run_docker(
     out_dir: Path, 
     analysis_name: str, 
     container_cmd: str, 
+    other_paths,
     cpus=4, 
     memory=16,
     dry_run=False
@@ -62,7 +65,7 @@ def run_docker(
     mount_lines = read_mount_file(mount_file)
 
     # Add required mounts
-    mount_lines += get_required_mounts(out_dir, analysis_name)
+    mount_lines += get_required_mounts(out_dir, analysis_name, other_paths)
 
     # Build docker command
     docker_cmd = build_docker_command(image, docker_options, mount_lines, container_cmd)
