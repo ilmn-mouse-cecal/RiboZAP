@@ -342,7 +342,7 @@ process MERGE_PAIRED_READS {
 process RUN_SORTMERNA {
     label 'high'
     tag "$sample_id"
-    errorStrategy 'terminate'
+    errorStrategy 'ignore'
 
     publishDir "${params.outdir}/$sample_id"
 
