@@ -1,10 +1,8 @@
-# ribozap
-
 **Create Additional Probes on Unknown Mixed Samples**
 
 ## Overview
 
-**ribozap** is designed to generate custom RNaseH probes for metatranscriptomics samples without prior knowledge of sample compostion. Addition of these probes to RiboZero Plus Microbiome kit will significantly improve depletion of additional ribosomal RNA (rRNA) regions.
+**RiboZAP** is designed to generate custom RNaseH probes for metatranscriptomics samples without prior knowledge of sample compostion. Addition of these probes to RiboZero Plus Microbiome kit will significantly improve depletion of additional ribosomal RNA (rRNA) regions.
 
 Depleting rRNA, which typically constitutes 80–90% of total RNA, before sequencing significantly reduces sequencing costs and increases the coverage of mRNA.
 
