@@ -14,9 +14,6 @@ workflow TEST_PROBES {
         RUN_BLAST(ref_fasta, additional_probe_80_percent_fasta, top_coverage_regions)
         FILTER_AND_ADD_PADDING(RUN_BLAST.out, ref_fasta, top_coverage_regions, params.padding)
         MERGE_CAN_DEPLETE_REGIONS(FILTER_AND_ADD_PADDING.out, top_coverage_regions)
-        //GENOME_COVERAGE_BED(RUN_SORTMERNA_BEST_HIT.out, ref_fasta)
-        //IDENTIFY_ALL_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out)
-        //MERGE_CLOSE_BY_BLOCKS(IDENTIFY_ALL_COVERAGE_BLOCKS.out)
         GET_NEAR_PROBE_READS(
             RUN_SORTMERNA_BEST_HIT.out,
             MERGE_CAN_DEPLETE_REGIONS.out.can_deplete_regions_merged,
@@ -271,12 +268,10 @@ process MERGE_CAN_DEPLETE_REGIONS {
 
     output:
     path("top_${top_coverage_regions}_additional_probe_80perc_only_can_deplete_regions_merged.bed"), emit: can_deplete_regions_merged
-    path("top_${top_coverage_regions}_result.txt"), emit: top_coverage_result
     
     script:
     """
     /app/bin/merge_candeplete_regions.py -i $can_deplete_regions -o top_${top_coverage_regions}_additional_probe_80perc_only_can_deplete_regions_merged.bed
-    echo -e "SampleNumber\tTotal # of Reads Mapped to SIVLA\tReads Overlaps with Possible Depleted Region\tTotal Number of Reads (R1+R2)\tOriginal rRNA Contents\tEstimate rRNA Contents After Extra Probes\trRNA Reduction" > top_${top_coverage_regions}_result.txt
     """
 }
 
