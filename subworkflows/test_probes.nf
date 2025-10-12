@@ -15,6 +15,7 @@ workflow TEST_PROBES {
         FILTER_AND_ADD_PADDING(RUN_BLAST.out, ref_fasta, top_coverage_regions, params.padding)
         MERGE_CAN_DEPLETE_REGIONS(FILTER_AND_ADD_PADDING.out, top_coverage_regions)
         GET_NEAR_PROBE_READS(
+            ${params.analysis_name}.replaceAll("_", "-"),
             RUN_SORTMERNA_BEST_HIT.out,
             MERGE_CAN_DEPLETE_REGIONS.out.can_deplete_regions_merged,
             top_coverage_regions
@@ -138,6 +139,7 @@ process GET_NEAR_PROBE_READS {
     errorStrategy 'ignore'
 
     input:
+    val analysis_name
     tuple val(sample_id), path(sorted_bam)
     path(can_deplete_regions_bed)
     val(top_coverage_regions)
@@ -145,16 +147,14 @@ process GET_NEAR_PROBE_READS {
     output:
     tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam"), emit: near_probe_bam
     tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam"), emit: not_near_probe_bam
-    tuple val(sample_id), path("${sample_id}_${params.analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz"), emit: rRNA_fastq
+    tuple val(sample_id), path("${sample_id}_${analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz"), emit: rRNA_fastq
 
     script:
     
     """
-    analysis_name=${params.analysis_name}
-    new_analysis_name=\${analysis_name//_/-}
     samtools view -b $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam
     samtools view -b -L $can_deplete_regions_bed -U top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam $sorted_bam > /dev/null
-    samtools fastq -0 /dev/stdout -s /dev/null -n top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam | gzip > ${sample_id}_\${new_analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz
+    samtools fastq -0 /dev/stdout -s /dev/null -n top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam | gzip > ${sample_id}_${analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz
     """
 }
 
