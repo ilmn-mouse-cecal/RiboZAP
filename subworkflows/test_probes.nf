@@ -22,7 +22,7 @@ workflow TEST_PROBES {
 
         samples_ch.collect(flat: false).set {all_samples}
         RUN_SORTMERNA_BEST_HIT.out.collect(flat: false).set {sortmerna_bam}
-        GET_NEAR_PROBE_READS.out.collect(flat: false).set {near_probe_reads}
+        GET_NEAR_PROBE_READS.out.near_probe_bam.collect(flat: false).set {near_probe_reads}
 
         CALCULATE_STATS(
             all_samples,
@@ -143,11 +143,13 @@ process GET_NEAR_PROBE_READS {
     val(top_coverage_regions)
 
     output:
-    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam")
+    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam"), emit: near_probe_bam
+    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam"), emit: not_near_probe_bam
 
     script:
     """
     samtools view -b $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam
+    samtools view -b -L $can_deplete_regions_bed -U top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam $sorted_bam > /dev/null
     """
 }
 
