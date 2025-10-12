@@ -9,6 +9,7 @@ params.coverage_threshold = 500
 params.test_dir = "${params.outdir}/test_probes"
 params.probes_fasta = null
 params.probes_summary = null
+params.analysis_name = "my_analysis"
 
 include { TEST_PROBES } from './subworkflows/test_probes'
 
