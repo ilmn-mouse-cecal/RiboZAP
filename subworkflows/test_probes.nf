@@ -148,11 +148,12 @@ process GET_NEAR_PROBE_READS {
     tuple val(sample_id), path("${sample_id}_${params.analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz"), emit: rRNA_fastq
 
     script:
-    new_analysis_name = params.analysis_name.replaceAll("_", "-")
+    
     """
+    new_analysis_name=\${analysis_name//_/-}
     samtools view -b $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam
     samtools view -b -L $can_deplete_regions_bed -U top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam $sorted_bam > /dev/null
-    samtools fastq -0 /dev/stdout -s /dev/null -n top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam | gzip > ${sample_id}_${new_analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz
+    samtools fastq -0 /dev/stdout -s /dev/null -n top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam | gzip > ${sample_id}_\${new_analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz
     """
 }
 
