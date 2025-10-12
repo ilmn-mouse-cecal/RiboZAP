@@ -70,7 +70,7 @@ process CALCULATE_STATS {
     input:
     val all_samples
     val sortmerna_bam_files
-    val near_probe_sam_files
+    val near_probe_bam_files
 
     output:
     val "${params.test_dir}/top_coverage_result.csv"
@@ -78,7 +78,7 @@ process CALCULATE_STATS {
     exec:
     def samples_map = all_samples.collectEntries { [it[0], it[1]] }
     def bam_map = sortmerna_bam_files.collectEntries { [it[0], it[1]] }
-    def sam_map = near_probe_sam_files.collectEntries { [it[0], it[1]] }
+    def near_probe_bam_map = near_probe_bam_files.collectEntries { [it[0], it[1]] }
     def is_pe = all_samples[0][3]
 
     def resultFile = new File(params.test_dir.toString() + "/top_coverage_result.csv")
@@ -87,9 +87,9 @@ process CALCULATE_STATS {
     samples_map.keySet().each { sample_id ->
         def fastq_path = samples_map[sample_id]
         def bam_path = bam_map[sample_id]
-        def sam_path = sam_map[sample_id]
+        def near_probe_bam_path = near_probe_bam_map[sample_id]
 
-        def depleted = "grep -vc '^@' ${sam_path}".execute().text.trim().toInteger()
+        def depleted = "samtools view -c ${near_probe_bam_path}".execute().text.trim().toInteger()
         def mappedReads = ["bash", "-c", "samtools view -F 4 ${bam_path}| wc -l"].execute().text.trim().toInteger()
         def cmd = fastq_path.toString().endsWith(".gz") ?
             "zcat ${fastq_path} | wc -l" :
@@ -143,11 +143,11 @@ process GET_NEAR_PROBE_READS {
     val(top_coverage_regions)
 
     output:
-    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.sam")
+    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam")
 
     script:
     """
-    samtools view $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.sam
+    samtools view -b $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam
     """
 }
 
