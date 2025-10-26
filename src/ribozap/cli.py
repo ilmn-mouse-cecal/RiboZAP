@@ -5,6 +5,7 @@ from .docker_launcher import run_docker
 import logging
 import re
 import sys
+import shutil
 
 MIN_CPUS = 2
 MIN_MEM = 10
@@ -119,6 +120,25 @@ def main():
         help="Number of bases to extend upstream and downstream of each alignment (default: 50bp). This is useful for in silico probe testing to get coverage beyond the aligned region."
     )
 
+    validate = parser.add_argument_group(
+        'Validating designed probes',
+        description=(
+            "This validation process will test the provided probes against a set of samples. "
+            "If either --probes-fasta or --probes-summary is provided, the design workflow "
+            "will not be executed."
+        )
+    )
+    validate.add_argument(
+        "--probes-fasta",
+        type=Path,
+        help="For testing designed probes against a set of samples, you can provide FASTA file of probe sequences."
+    )
+    validate.add_argument(
+        "--probes-summary",
+        type=Path,
+        help="Probes summary sequence CSV file."
+    )
+
     args = parser.parse_args()
     
     if args.cpus < MIN_CPUS:
@@ -143,6 +163,19 @@ def main():
     padding = args.padding
     cov_threshold = args.coverage_threshold
     probe_tiling_gap = args.probe_tiling_gap
+    validation_opt = ""
+    other_paths = []
+    if args.probes_fasta and args.probes_fasta.exists():
+        #fasta_out = out_dir / "probes.fasta"
+        #shutil.copy(args.probes_fasta, fasta_out)
+        validation_opt += f' --probes_fasta "{args.probes_fasta.resolve()}" '
+        other_paths.append(f'"{args.probes_fasta.resolve()}"')
+
+    if args.probes_summary and args.probes_summary.exists():
+        #summary_out = out_dir / "probes_summary.csv"
+        #shutil.copy(args.probes_summary, summary_out)
+        validation_opt += f' --probes_summary "{args.probes_summary.resolve()}" '
+        other_paths.append(f'"{args.probes_summary.resolve()}"')
 
     rewritten_path = out_dir.resolve() / "rewritten_sample_sheet.csv"
     mount_path = out_dir.resolve() / "docker_mounts.txt"
@@ -158,7 +191,8 @@ def main():
         mount_file=mount_path,
         out_dir=out_dir,
         analysis_name=analysis_name,
-        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --probe_tiling_gap {probe_tiling_gap} --padding {padding} --coverage_threshold {cov_threshold} {resume_flag}",
+        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --analysis_name {analysis_name} --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --probe_tiling_gap {probe_tiling_gap} --padding {padding} --coverage_threshold {cov_threshold} {validation_opt} {resume_flag}",
+        other_paths = other_paths,
         cpus=args.cpus,
         memory=args.memory,
         dry_run=args.dry_run

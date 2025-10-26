@@ -3,35 +3,35 @@
 workflow TEST_PROBES {
     take:
         samples_ch
-        genome_cov_bed
+        merged_fastq
         ref_fasta
         additional_probe_80_percent_fasta
         probes_summary
         top_coverage_regions
 
     main:
-        RUN_SORTMERNA_BEST_HIT(samples_ch, "/app/idx", "${params.cpus}")
+        RUN_SORTMERNA_BEST_HIT(merged_fastq, "/app/idx", "${params.cpus}")
         RUN_BLAST(ref_fasta, additional_probe_80_percent_fasta, top_coverage_regions)
         FILTER_AND_ADD_PADDING(RUN_BLAST.out, ref_fasta, top_coverage_regions, params.padding)
         MERGE_CAN_DEPLETE_REGIONS(FILTER_AND_ADD_PADDING.out, top_coverage_regions)
-        //GENOME_COVERAGE_BED(RUN_SORTMERNA_BEST_HIT.out, ref_fasta)
-        //IDENTIFY_ALL_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out)
-        //MERGE_CLOSE_BY_BLOCKS(IDENTIFY_ALL_COVERAGE_BLOCKS.out)
         GET_NEAR_PROBE_READS(
+            params.analysis_name.replaceAll("_", "-"),
             RUN_SORTMERNA_BEST_HIT.out,
             MERGE_CAN_DEPLETE_REGIONS.out.can_deplete_regions_merged,
             top_coverage_regions
         )
 
         samples_ch.collect(flat: false).set {all_samples}
-        RUN_SORTMERNA_BEST_HIT.out.collect(flat: false).set {srotmerna_bam}
-        GET_NEAR_PROBE_READS.out.collect(flat: false).set {near_probe_reads}
+        RUN_SORTMERNA_BEST_HIT.out.collect(flat: false).set {sortmerna_bam}
+        GET_NEAR_PROBE_READS.out.near_probe_bam.collect(flat: false).set {near_probe_reads}
 
         CALCULATE_STATS(
             all_samples,
-            srotmerna_bam,
+            sortmerna_bam,
             near_probe_reads
         )
+        new File("NO_SUMMARY").text = ""
+        probes_summary = probes_summary ? probes_summary: Channel.fromPath("NO_SUMMARY")
         GENERATE_REPORTS(
             CALCULATE_STATS.out,
             additional_probe_80_percent_fasta,
@@ -71,39 +71,38 @@ process CALCULATE_STATS {
     input:
     val all_samples
     val sortmerna_bam_files
-    val near_probe_sam_files
+    val near_probe_bam_files
 
     output:
     val "${params.test_dir}/top_coverage_result.csv"
 
     exec:
-    def fastq_map = all_samples.collectEntries { [it[0], it[1]] }
+    def samples_map = all_samples.collectEntries { [it[0], it[1]] }
     def bam_map = sortmerna_bam_files.collectEntries { [it[0], it[1]] }
-    def sam_map = near_probe_sam_files.collectEntries { [it[0], it[1]] }
+    def near_probe_bam_map = near_probe_bam_files.collectEntries { [it[0], it[1]] }
     def is_pe = all_samples[0][3]
 
     def resultFile = new File(params.test_dir.toString() + "/top_coverage_result.csv")
-    resultFile.text = "Sample ID,Total Reads,Total Mapped,Remaining rRNA,Unmapped,Depleted,rRNA Mapped Percent,Remaining rRNA Percent,rRNA Depletion Percent\n"
+    resultFile.text = "Sample ID,Total Reads,Total Mapped,Unmapped,Depleted,Remaining Mapped,rRNA Mapped Percent,Remaining rRNA Percent,rRNA Depletion Percent\n"
 
-    fastq_map.keySet().each { sample_id ->
-        def fastq_path = fastq_map[sample_id]
+    samples_map.keySet().each { sample_id ->
+        def fastq_path = samples_map[sample_id]
         def bam_path = bam_map[sample_id]
-        def sam_path = sam_map[sample_id]
+        def near_probe_bam_path = near_probe_bam_map[sample_id]
 
-        def depleted = "grep -vc '^@' ${sam_path}".execute().text.trim().toInteger()
-        depleted = is_pe ? (depleted / 2) : depleted
-        def totalmapped = "samtools view -c -F 4 ${bam_path}".execute().text.trim().toInteger()
-        def mapped = is_pe ? (totalmapped / 2) : totalmapped
-        def totalfastq_lines = ["bash","-c","wc -l < ${fastq_path}"].execute().text.trim().toInteger()
-        def totalfastq = totalfastq_lines / 4
-        def unmapped = totalfastq - mapped
-        def mapped_percent = (mapped / totalfastq) * 100
-        def remaining_rRNA = mapped - depleted
-        def remaining_rRNA_percent = (remaining_rRNA / mapped) * 100
-        def rrna_depletion_percent = (depleted / totalfastq) * 100
-
-        
-        resultFile.append("${sample_id},${totalfastq},${mapped},${remaining_rRNA},${unmapped},${depleted},${String.format('%.2f', mapped_percent)},${String.format('%.2f', remaining_rRNA_percent)},${String.format('%.2f', rrna_depletion_percent)}\n")
+        def depleted = "samtools view -c ${near_probe_bam_path}".execute().text.trim().toInteger()
+        def mappedReads = ["bash", "-c", "samtools view -F 4 ${bam_path}| wc -l"].execute().text.trim().toInteger()
+        def cmd = fastq_path.toString().endsWith(".gz") ?
+            "zcat ${fastq_path} | wc -l" :
+            "cat ${fastq_path} | wc -l"
+        def totalfastq_lines = ["bash", "-c", cmd].execute().text.trim().toInteger()
+        def totalfastq = is_pe ? (totalfastq_lines / 4) *2 : (totalfastq_lines / 4)
+        def unmapped = totalfastq - mappedReads
+        def mapped_percent = (mappedReads / totalfastq) * 100
+        def remaining_rRNA = mappedReads - depleted
+        def remaining_rRNA_percent = (remaining_rRNA / mappedReads) * 100
+        def rrna_depletion_percent = (depleted / mappedReads) * 100
+        resultFile.append("${sample_id},${totalfastq},${mappedReads},${unmapped},${depleted},${remaining_rRNA},${String.format('%.2f', mapped_percent)},${String.format('%.2f', remaining_rRNA_percent)},${String.format('%.2f', rrna_depletion_percent)}\n")
     }
 }
 
@@ -140,16 +139,22 @@ process GET_NEAR_PROBE_READS {
     errorStrategy 'ignore'
 
     input:
+    val analysis_name
     tuple val(sample_id), path(sorted_bam)
     path(can_deplete_regions_bed)
     val(top_coverage_regions)
 
     output:
-    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.sam")
+    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam"), emit: near_probe_bam
+    tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam"), emit: not_near_probe_bam
+    tuple val(sample_id), path("${sample_id}_${analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz"), emit: rRNA_fastq
 
     script:
+    
     """
-    samtools view $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.sam
+    samtools view -b $sorted_bam -L $can_deplete_regions_bed > top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam
+    samtools view -b -L $can_deplete_regions_bed -U top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam $sorted_bam > /dev/null
+    samtools fastq -0 /dev/stdout -s /dev/null -n top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam | gzip > ${sample_id}-${analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz
     """
 }
 
@@ -225,7 +230,7 @@ process RUN_SORTMERNA_BEST_HIT {
     errorStrategy 'ignore'
 
     input:
-    tuple val(sample_id), path(read1), path(read2), val(is_pe)
+    tuple val(sample_id), path(merged_fastq)
     path(index_files)
     val(cpus)
 
@@ -234,7 +239,6 @@ process RUN_SORTMERNA_BEST_HIT {
 
     script:
     def ref_base = "/app/resources/rRNA_databases"
-    def read2_opt = read2 ? "--reads ${read2}" : ""
     """
     sortmerna \
       --workdir './' \
@@ -246,22 +250,17 @@ process RUN_SORTMERNA_BEST_HIT {
       --ref ${ref_base}/rfam-5s-database-id98.fasta \
       --ref ${ref_base}/silva-arc-16s-id95.fasta \
       --ref ${ref_base}/silva-euk-28s-id98.fasta \
-      --reads ${read1} \
-      ${read2_opt} \
+      --reads ${merged_fastq} \
       --aligned ${sample_id}_SortMeRna \
       --threads ${cpus} \
       --sam \
       --SQ \
       --num_alignments 1
 
-    sam_file="${sample_id}_SortMeRna.sam"
-    if [[ ! -f \$sam_file ]]; then
-        sam_file="${sample_id}_SortMeRna.sam.gz"
-    fi
-    samtools view -@ ${cpus} -b \$sam_file | \
-    samtools sort -@ ${cpus} -o "${sample_id}_SortMeRna.sorted.bam"
-    samtools index -@ ${cpus} "${sample_id}_SortMeRna.sorted.bam"
-    rm -rf \$sam_file
+    samtools view -Sb "${sample_id}_SortMeRna.sam" > "${sample_id}_SortMeRna.bam"
+    samtools sort "${sample_id}_SortMeRna.bam" -o "${sample_id}_SortMeRna.sorted.bam"
+    rm -rf "${sample_id}_SortMeRna.sam"
+    rm -rf "${sample_id}_SortMeRna.bam"
     """
 }
 
@@ -276,12 +275,10 @@ process MERGE_CAN_DEPLETE_REGIONS {
 
     output:
     path("top_${top_coverage_regions}_additional_probe_80perc_only_can_deplete_regions_merged.bed"), emit: can_deplete_regions_merged
-    path("top_${top_coverage_regions}_result.txt"), emit: top_coverage_result
     
     script:
     """
     /app/bin/merge_candeplete_regions.py -i $can_deplete_regions -o top_${top_coverage_regions}_additional_probe_80perc_only_can_deplete_regions_merged.bed
-    echo -e "SampleNumber\tTotal # of Reads Mapped to SIVLA\tReads Overlaps with Possible Depleted Region\tTotal Number of Reads (R1+R2)\tOriginal rRNA Contents\tEstimate rRNA Contents After Extra Probes\trRNA Reduction" > top_${top_coverage_regions}_result.txt
     """
 }
 
