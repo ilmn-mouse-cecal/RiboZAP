@@ -10,6 +10,7 @@ params.test_dir = "${params.outdir}/test_probes"
 params.probes_fasta = null
 params.probes_summary = null
 params.analysis_name = "my_analysis"
+params.probe_length = 50
 
 include { TEST_PROBES } from './subworkflows/test_probes'
 
@@ -53,7 +54,7 @@ workflow {
         BED_TO_FASTA(MERGE_OVERLAPPING_REGIONS.out, "/app/resources/Genome/allFasta.fasta", params.top_coverage_regions)
         RUN_BLAST(BED_TO_FASTA.out)
         IDENTIFY_HEATMAP_BLOCKS(RUN_BLAST.out.blast_hit_json, RUN_BLAST.out.cov_fasta, params.top_coverage_regions)
-        MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap)
+        MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap, params.probe_length)
         GET_FASTA(MAKE_BED_25BP_GAP.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
         
         TEST_PROBES(
@@ -107,13 +108,14 @@ process MAKE_BED_25BP_GAP {
     path(fasta_index)
     val(top_coverage_regions)
     val(probe_tiling_gap)
+    val(probe_length)
 
     output:
     path("top_${top_coverage_regions}_additional_probe_80perc_only.bed")
 
     script:
     """
-    /app/bin/make_bed_25bp_gap_v2.py $fasta_index "top_${top_coverage_regions}_additional_probe_80perc_only.bed" --gap $probe_tiling_gap
+    /app/bin/make_bed_25bp_gap_v2.py $fasta_index "top_${top_coverage_regions}_additional_probe_80perc_only.bed" --gap $probe_tiling_gap --probe-length $probe_length
     """
 }
 
