@@ -147,7 +147,7 @@ process GET_NEAR_PROBE_READS {
     output:
     tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_near_probe_reads.bam"), emit: near_probe_bam
     tuple val(sample_id), path("top_${top_coverage_regions}_additional_probe_80perc_only_NOT_near_probe_reads.bam"), emit: not_near_probe_bam
-    tuple val(sample_id), path("${sample_id}_${analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz"), emit: rRNA_fastq
+    tuple val(sample_id), path("${sample_id}_${analysis_name}-residual-rRNA_S1_L001_R1_001.fastq.gz"), optional: true, emit: rRNA_fastq
 
     script:
     

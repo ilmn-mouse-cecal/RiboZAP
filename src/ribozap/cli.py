@@ -14,6 +14,12 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
+def is_probe_length_valid(value):
+    ivalue = int(value)
+    if ivalue < 25 or ivalue > 100:
+        return False
+    return True
+
 def main():
     parser = argparse.ArgumentParser(
         prog="ribozap",
@@ -102,12 +108,18 @@ def main():
         help="Enter the number of top high-coverage regions from the BED file to keep (default: 50)",
         required=False
     )
-
     probes.add_argument(
         "--probe-tiling-gap",
         default=25,
         type=int,
         help="Gap size between probes (default: 25)",
+        required=False
+    )
+    probes.add_argument(
+        "--probe-length",
+        default=50,
+        type=int,
+        help="Length of each probe. Default is 50. Acceptable range: 25–100 nt.",
         required=False
     )
 
@@ -150,6 +162,10 @@ def main():
         sys.exit(1)
 
     invalid = re.search(r"[^A-Za-z0-9_.-]", args.analysis_name)
+    
+    if not is_probe_length_valid(args.probe_length):
+        raise argparse.ArgumentTypeError("Probe length must be between 25 and 100 nt.")
+
     if invalid:
         logging.error("Invalid analysis name: only letters, numbers, dashes, underscores, and dots are allowed . . .")
         sys.exit(1)
@@ -163,6 +179,7 @@ def main():
     padding = args.padding
     cov_threshold = args.coverage_threshold
     probe_tiling_gap = args.probe_tiling_gap
+    probe_length = args.probe_length
     validation_opt = ""
     other_paths = []
     if args.probes_fasta and args.probes_fasta.exists():
@@ -191,7 +208,7 @@ def main():
         mount_file=mount_path,
         out_dir=out_dir,
         analysis_name=analysis_name,
-        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --analysis_name {analysis_name} --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --probe_tiling_gap {probe_tiling_gap} --padding {padding} --coverage_threshold {cov_threshold} {validation_opt} {resume_flag}",
+        container_cmd=f"nextflow run main.nf -work-dir {out_dir.resolve()}/{analysis_name}/work/ --analysis_name {analysis_name} --sample_sheet {rewritten_path} --outdir {out_dir.resolve()}/{analysis_name} --trace_dir {out_dir.resolve()}/{analysis_name}/trace_dir --top_coverage_regions {num_coverage_regions} --cpus {high_cpus} --memory '{high_memory} GB' --probe_tiling_gap {probe_tiling_gap} --padding {padding} --probe_length {probe_length} --coverage_threshold {cov_threshold} {validation_opt} {resume_flag}",
         other_paths = other_paths,
         cpus=args.cpus,
         memory=args.memory,
