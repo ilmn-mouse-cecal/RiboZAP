@@ -2,6 +2,7 @@
 
 params.sample_sheet = null
 params.outdir = null
+params.custom_db = null
 params.top_coverage_regions = 50
 params.probe_tiling_gap = 25
 params.padding = 50
@@ -11,6 +12,7 @@ params.probes_fasta = null
 params.probes_summary = null
 params.analysis_name = "my_analysis"
 params.probe_length = 50
+params.ref_db = params.custom_db ? params.custom_db:"${projectDir}/resources/Genome/allFasta.fasta"
 
 include { TEST_PROBES } from './subworkflows/test_probes'
 
@@ -36,12 +38,12 @@ workflow {
         .set { samples_ch }
     MERGE_PAIRED_READS(samples_ch)
     if (!params.probes_summary && !params.probes_fasta) {
-        RUN_SORTMERNA(MERGE_PAIRED_READS.out, "/app/idx", "${params.cpus}")
+        RUN_SORTMERNA(MERGE_PAIRED_READS.out, params.ref_db, "/app/idx", "${params.cpus}")
         RUN_SORTMERNA.out.map { sample_id, bam_file, merged_fastq ->
             tuple(sample_id, bam_file, merged_fastq)
         }
         .set { sortmerna_out }
-        GENOME_COVERAGE_BED(sortmerna_out, "/app/resources/Genome/allFasta.fasta")
+        GENOME_COVERAGE_BED(sortmerna_out, params.ref_db)
         IDENTIFY_HIGH_COVERAGE_BLOCKS(GENOME_COVERAGE_BED.out, params.coverage_threshold)
         MERGE_CLOSE_BY_BLOCKS(IDENTIFY_HIGH_COVERAGE_BLOCKS.out)
         ADD_READ_PERCENT(MERGE_CLOSE_BY_BLOCKS.out)
@@ -51,16 +53,16 @@ workflow {
             all_cov_sorted_bed_percent_added
         )
         MERGE_OVERLAPPING_REGIONS(params.top_coverage_regions, GET_TOP_COVERAGE_REGIONS.out)
-        BED_TO_FASTA(MERGE_OVERLAPPING_REGIONS.out, "/app/resources/Genome/allFasta.fasta", params.top_coverage_regions)
+        BED_TO_FASTA(MERGE_OVERLAPPING_REGIONS.out, params.ref_db, params.top_coverage_regions)
         RUN_BLAST(BED_TO_FASTA.out)
         IDENTIFY_HEATMAP_BLOCKS(RUN_BLAST.out.blast_hit_json, RUN_BLAST.out.cov_fasta, params.top_coverage_regions)
-        MAKE_BED_25BP_GAP(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap, params.probe_length)
-        GET_FASTA(MAKE_BED_25BP_GAP.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
+        GENERATE_TILING_BED(IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fai, params.top_coverage_regions, params.probe_tiling_gap, params.probe_length)
+        GET_FASTA(GENERATE_TILING_BED.out, IDENTIFY_HEATMAP_BLOCKS.out.top_regions_80_perc_only_fasta, params.top_coverage_regions)
         
         TEST_PROBES(
             samples_ch,
             MERGE_PAIRED_READS.out,
-            "/app/resources/Genome/allFasta.fasta",
+            params.ref_db,
             GET_FASTA.out.probes_fasta,
             GET_FASTA.out.probes_summary,
             params.top_coverage_regions
@@ -69,7 +71,7 @@ workflow {
         TEST_PROBES(
             samples_ch,
             MERGE_PAIRED_READS.out,
-            "/app/resources/Genome/allFasta.fasta",
+            params.ref_db,
             params.probes_fasta,
             params.probes_summary,
             params.top_coverage_regions
@@ -99,7 +101,7 @@ process GET_FASTA {
     """
 }
 
-process MAKE_BED_25BP_GAP {
+process GENERATE_TILING_BED {
     label 'small'
 
     publishDir "${params.outdir}/probes/"
@@ -115,7 +117,7 @@ process MAKE_BED_25BP_GAP {
 
     script:
     """
-    /app/bin/make_bed_25bp_gap_v2.py $fasta_index "top_${top_coverage_regions}_additional_probe_80perc_only.bed" --gap $probe_tiling_gap --probe-length $probe_length
+    /app/bin/generate_tiling_bed.py $fasta_index "top_${top_coverage_regions}_additional_probe_80perc_only.bed" --gap $probe_tiling_gap --probe-length $probe_length
     """
 }
 
@@ -362,6 +364,7 @@ process RUN_SORTMERNA {
 
     input:
     tuple val(sample_id), path(merged_fastq)
+    path(ref_db)
     path(index_files)
     val(cpus)
 
@@ -369,19 +372,10 @@ process RUN_SORTMERNA {
     tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam"), path(merged_fastq)
 
     script:
-    def ref_base = "${projectDir}/resources/rRNA_databases"
-    //def read2_opt = read2 ? "--reads ${read2}" : ""
     """
     sortmerna \
       --workdir './' \
-      --ref ${ref_base}/silva-arc-23s-id98.fasta \
-      --ref ${ref_base}/silva-bac-23s-id98.fasta \
-      --ref ${ref_base}/silva-bac-16s-id90.fasta \
-      --ref ${ref_base}/rfam-5.8s-database-id98.fasta \
-      --ref ${ref_base}/silva-euk-18s-id95.fasta \
-      --ref ${ref_base}/rfam-5s-database-id98.fasta \
-      --ref ${ref_base}/silva-arc-16s-id95.fasta \
-      --ref ${ref_base}/silva-euk-28s-id98.fasta \
+      --ref ${ref_db} \
       --reads ${merged_fastq} \
       --aligned ${sample_id}_SortMeRna \
       --sam \

@@ -92,6 +92,13 @@ def main():
         required=False
     )
 
+    parser.add_argument(
+        "--custom-db",
+        type=Path,
+        help="Custom reference FASTA database",
+        required=False
+    )
+
     # ---------- Probe design options ----------
     probes = parser.add_argument_group('Probe design options')
     probes.add_argument(
@@ -182,6 +189,11 @@ def main():
     probe_length = args.probe_length
     validation_opt = ""
     other_paths = []
+
+    if args.custom_db and args.custom_db.exists():
+        validation_opt += f' --custom_db "{args.custom_db.resolve()}" '
+        other_paths.append(f'"{args.custom_db.resolve()}"')
+
     if args.probes_fasta and args.probes_fasta.exists():
         #fasta_out = out_dir / "probes.fasta"
         #shutil.copy(args.probes_fasta, fasta_out)
