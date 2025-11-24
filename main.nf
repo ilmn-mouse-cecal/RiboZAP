@@ -24,7 +24,23 @@ if (!params.outdir) {
     error "Please provide a output dir using --outdir argument"
 }
 
+process VALIDATE_FASTA {
+    label 'small'
+    errorStrategy 'terminate'
+
+    input:
+    path(fasta)
+
+    script:
+    """
+    samtools faidx $fasta
+    """
+}
+
 workflow {
+    if (params.custom_db) {
+        VALIDATE_FASTA(params.ref_db)
+    }
     Channel
         .fromPath(params.sample_sheet)
         .splitCsv(header: true)
@@ -68,6 +84,10 @@ workflow {
             params.top_coverage_regions
         )
     } else {
+        if (params.custom_db) {
+            VALIDATE_FASTA(params.ref_db)
+        }
+
         TEST_PROBES(
             samples_ch,
             MERGE_PAIRED_READS.out,
