@@ -23,6 +23,15 @@ pip install .
 docker build -t ribozap:latest .
 ```
 
+**Sample Sheet Format**
+
+Your input must be a CSV with three columns:
+```
+sample_id,read1,read2
+```
+
+An example sample sheet is included [here](https://github.com/ilmn-mouse-cecal/RiboZAP/blob/537c72e1fe69ea05a341eff507c801d5ce370d3a/examples/sample_sheet.csv)
+
 **Run the App**:
 ```bash
 ribozap \
@@ -45,4 +54,4 @@ The codebase follows [PEP 8](https://peps.python.org/pep-0008/) conventions and 
 
 If you use `ribozap` in your research, please cite our publication:
 
-Roos M, Bunga S, Tan A, Maissy E, Skola D, Richter A, Whittaker DS, Desplats P, Zarrinpar A, Conrad R, Kuersten S.0.Optimizing mouse metatranscriptome profiling by selective removal of redundant nucleic acid sequences. mSystems0:e00167-25.https://doi.org/10.1128/msystems.00167-25
+Bunga, S., Tan, A., Roos, M., & Kuersten, S. (2025). RiboZAP: Custom probe design for rRNA depletion in complex metatranscriptomes. bioRxiv, 2025-11.

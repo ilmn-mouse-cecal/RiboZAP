@@ -4,7 +4,9 @@ import argparse
 from pathlib import Path
 
 # Argument parsing
-parser = argparse.ArgumentParser(description="Generate 50bp probe windows with 25bp gaps from FASTA index (.fai).")
+parser = argparse.ArgumentParser(
+    description="Generate probe tiling windows from a FASTA index (.fai) using user-defined probe length and gap size."
+)
 parser.add_argument("fasta_fai", help="Path to the FASTA index (.fai) file")
 parser.add_argument("output_bed", help="Path to output BED file")
 parser.add_argument("--gap", "-g", type=int, default=25, help="Gap size between probes (default: 25)")

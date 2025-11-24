@@ -10,7 +10,7 @@ workflow TEST_PROBES {
         top_coverage_regions
 
     main:
-        RUN_SORTMERNA_BEST_HIT(merged_fastq, "/app/idx", "${params.cpus}")
+        RUN_SORTMERNA_BEST_HIT(merged_fastq, ref_fasta, "/app/idx", "${params.cpus}")
         RUN_BLAST(ref_fasta, additional_probe_80_percent_fasta, top_coverage_regions)
         FILTER_AND_ADD_PADDING(RUN_BLAST.out, ref_fasta, top_coverage_regions, params.padding)
         MERGE_CAN_DEPLETE_REGIONS(FILTER_AND_ADD_PADDING.out, top_coverage_regions)
@@ -106,29 +106,6 @@ process CALCULATE_STATS {
     }
 }
 
-/*process CALCULATE_STATS {
-    label 'small'
-    tag "$sample_id"
-    publishDir "${params.test_dir}"
-    errorStrategy 'ignore'
-
-    input:
-    tuple val(sample_id), path(read1), path(read2)
-    tuple val(sample_id), path(sorted_bam)
-    path(near_probe_reads_sam)
-    path(top_coverage_result)
-
-    output:
-    path(top_coverage_result)
-
-    script:
-    """
-    depleted=`cat $near_probe_reads_sam  | wc -l`
-    totalmapped=`samtools view -F 4 $sorted_bam | wc -l`
-    totalfastq=`wc -l $read1 | awk '{print \$1/4*2;}'`
-    echo ${sample_id}","\${totalmapped}","\${depleted}","\${totalfastq} | awk 'BEGIN { FS=",";OFS = "\t";}{print \$1,\$2,\$3,\$4,(\$2/\$4*100)"%",((\$2-\$3)/(\$4-\$3)*100)"%",((\$2/\$4*100)-((\$2-\$3)/(\$4-\$3)*100))"%";}' >> $top_coverage_result
-    """
-}*/
 
 process GET_NEAR_PROBE_READS {
     label 'medium'
@@ -231,6 +208,7 @@ process RUN_SORTMERNA_BEST_HIT {
 
     input:
     tuple val(sample_id), path(merged_fastq)
+    path(ref_db)
     path(index_files)
     val(cpus)
 
@@ -238,18 +216,10 @@ process RUN_SORTMERNA_BEST_HIT {
     tuple val(sample_id), path("${sample_id}_SortMeRna.sorted.bam")
 
     script:
-    def ref_base = "/app/resources/rRNA_databases"
     """
     sortmerna \
       --workdir './' \
-      --ref ${ref_base}/silva-arc-23s-id98.fasta \
-      --ref ${ref_base}/silva-bac-23s-id98.fasta \
-      --ref ${ref_base}/silva-bac-16s-id90.fasta \
-      --ref ${ref_base}/rfam-5.8s-database-id98.fasta \
-      --ref ${ref_base}/silva-euk-18s-id95.fasta \
-      --ref ${ref_base}/rfam-5s-database-id98.fasta \
-      --ref ${ref_base}/silva-arc-16s-id95.fasta \
-      --ref ${ref_base}/silva-euk-28s-id98.fasta \
+      --ref ${ref_db} \
       --reads ${merged_fastq} \
       --aligned ${sample_id}_SortMeRna \
       --threads ${cpus} \
