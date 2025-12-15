@@ -33,6 +33,8 @@ sample_id,read1,read2
 An example sample sheet is included [here](https://github.com/ilmn-mouse-cecal/RiboZAP/blob/537c72e1fe69ea05a341eff507c801d5ce370d3a/examples/sample_sheet.csv)
 
 **Run the App**:
+
+Probe design:
 ```bash
 ribozap \
   --sample-sheet samplesheet.csv \
@@ -45,6 +47,22 @@ ribozap \
   --resume
 ```
 
+Validation:
+For validation, `--probes-fasta` and `--probes-summary` are required. These are produced by the probe design step (see outputs under your --output-dir).
+Example:
+```bash
+ribozap \
+  --sample-sheet samplesheet.csv \
+  --output-dir ./my_out/ \
+  --analysis-name my_analysis \
+  --probes-fasta ./my_out/reports/probes.fasta \
+  --probes-summary ./my_out/probes/probes.summary.csv \
+  --cpus 4 \
+  --memory 16 \
+  --image ribozap \
+  --image-tag 'latest' \
+  --resume
+```
 
 ## Code Style
 

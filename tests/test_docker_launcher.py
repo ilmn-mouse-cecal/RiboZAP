@@ -26,10 +26,10 @@ def test_get_required_mounts(tmp_path):
     analysis_name = "my_analysis"
     out_dir = tmp_path
     # Set a fake HOME for rRNA index
-    mounts = get_required_mounts(out_dir, analysis_name)
-    assert any(f'-v "{str(out_dir.resolve())}:/app/{out_dir.name}"' in m for m in mounts)
+    mounts = get_required_mounts(out_dir, analysis_name, [])
+    assert any(f'-v "{str(out_dir.resolve())}:{str(out_dir.resolve())}"' in m for m in mounts)
     assert any(f'/app/nextflow_files' in m for m in mounts)
-    assert any('/app/logs' in m for m in mounts)
+    assert any(f'{str(out_dir.resolve())}/{str(analysis_name)}/logs:{str(out_dir.resolve())}/{str(analysis_name)}/logs' in m for m in mounts)
     assert any('/app/idx' in m for m in mounts)
 
 def test_build_docker_command():
