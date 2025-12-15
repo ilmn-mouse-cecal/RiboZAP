@@ -27,7 +27,6 @@ def test_get_required_mounts(tmp_path):
     out_dir = tmp_path
     # Set a fake HOME for rRNA index
     mounts = get_required_mounts(out_dir, analysis_name, [])
-    print(out_dir, mounts)
     assert any(f'-v "{str(out_dir.resolve())}:{str(out_dir.resolve())}"' in m for m in mounts)
     assert any(f'/app/nextflow_files' in m for m in mounts)
     assert any(f'{str(out_dir.resolve())}/{str(analysis_name)}/logs:{str(out_dir.resolve())}/{str(analysis_name)}/logs' in m for m in mounts)
