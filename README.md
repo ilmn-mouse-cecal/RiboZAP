@@ -72,4 +72,4 @@ The codebase follows [PEP 8](https://peps.python.org/pep-0008/) conventions and 
 
 If you use `ribozap` in your research, please cite our publication:
 
-Bunga, S., Tan, A., Roos, M., & Kuersten, S. (2025). RiboZAP: Custom probe design for rRNA depletion in complex metatranscriptomes. bioRxiv, 2025-11.
+Bunga, S., Tan, A., Roos, M. et al. RiboZAP: a species-agnostic pipeline for rRNA depletion probe design in metatranscriptomics. BMC Bioinformatics (2026). https://doi.org/10.1186/s12859-026-06533-w
